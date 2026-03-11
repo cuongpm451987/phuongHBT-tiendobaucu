@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Tiến Độ Bầu Cử - Phường Hai Bà Trưng</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #d32f2f;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .live-status {
+            text-align: center;
+            color: #2e7d32;
+            font-weight: bold;
+            margin-bottom: 20px;
+            animation: blink 2s infinite; /* Hiệu ứng nhấp nháy cho chữ Real-time */
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            max-width: 1500px;
+            margin: 0 auto;
+            align-items: flex-start;
+        }
+        .input-panel {
+            flex: 3;
+            min-width: 900px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .table-wrapper {
+            max-height: 75vh; 
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background-color: #1565c0;
+            color: white;
+            position: sticky;
+            top: 0; 
+            z-index: 1;
+            padding: 12px 6px;
+            text-align: center;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        td {
+            padding: 6px;
+            border-bottom: 1px solid #ddd;
+            border-right: 1px solid #ddd;
+            text-align: center;
+            vertical-align: middle;
+        }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f8ff; }
+        td input {
+            width: 55px;
+            padding: 6px;
+            text-align: right;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        td input:focus {
+            outline: none;
+            border-color: #1565c0;
+            background-color: #e3f2fd;
+        }
+        .area-name {
+            font-weight: bold;
+            text-align: left;
+            white-space: nowrap;
+            min-width: 120px;
+        }
+        .chart-panel {
+            flex: 1;
+            min-width: 350px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 20px; 
+        }
+        .highlight-input {
+            background-color: #fff9c4;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #fbc02d;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .highlight-input label {
+            color: #d84315;
+            font-weight: bold;
+            font-size: 1.1em;
+            display: block;
+            margin-bottom: 10px;
+        }
+        .summary {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 1px solid #90caf9;
+            display: flex;
+            justify-content: space-around;
+        }
+        .summary-box p {
+            margin: 0 0 5px 0;
+            font-size: 1em;
+            color: #555;
+            font-weight: bold;
+        }
+        .summary-box h2 {
+            margin: 0;
+            color: #1565c0;
+            font-size: 2em;
+        }
+        .summary-box h2.percent { color: #2e7d32; }
+
+        /* CSS CHO NÚT XUẤT EXCEL MÀU VÀNG */
+        .btn-export {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            background-color: #ffca28; /* Màu vàng */
+            color: #333; /* Chữ đậm màu đen cho dễ nhìn */
+            border: 1px solid #fbc02d;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn-export:hover {
+            background-color: #ffb300;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>DASHBOARD TIẾN ĐỘ CỬ TRI BỎ PHIẾU PHƯỜNG HAI BÀ TRƯNG</h1>
+    <div class="live-status">🟢 ĐỀ NGHỊ KHÔNG XÓA DỮ LIỆU CỦA KVBP KHÁC (Dữ liệu đang đồng bộ)</div>
+
+    <div class="container">
+        <div class="input-panel">
+            <h3 style="margin-top: 0; color: #1565c0;">Chi tiết số lượng cử tri (Người)</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Khu vực bỏ phiếu</th>
+                            <th style="background-color: #ef6c00;">Tổng cử tri KVBP</th>
+                            <th>07h-09h</th>
+                            <th>09h-11h</th>
+                            <th>11h-13h</th>
+                            <th>13h-15h</th>
+                            <th>15h-17h</th>
+                            <th>17h-19h</th>
+                            <th style="background-color: #2e7d32;">Tổng đã bầu</th>
+                            <th style="background-color: #2e7d32;">Tỷ lệ %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="chart-panel">
+            <div class="highlight-input">
+                <label>Tổng cử tri toàn phường</label>
+                <h2 id="totalEligibleDisplay" style="color: #d84315; margin: 0; font-size: 2.2em;">0</h2>
+                <p style="margin: 5px 0 0 0; font-size: 0.85em; color: #666;">(Tự động cộng từ danh sách các khu vực)</p>
+            </div>
+
+            <div class="summary">
+                <div class="summary-box">
+                    <p>Tổng đã đi bầu</p>
+                    <h2 id="totalVotes">0</h2>
+                </div>
+                <div class="summary-box">
+                    <p>Tỷ lệ đi bầu</p>
+                    <h2 id="turnoutPercent" class="percent">0.00%</h2>
+                </div>
+            </div>
+
+            <canvas id="votingChart"></canvas>
+
+            <button class="btn-export" onclick="exportExcel()">⬇️ XUẤT FILE</button>
+        </div>
+    </div>
+
+    <script>
+        const totalAreas = 32;
+
+        // 1. TẠO GIAO DIỆN BẢNG
+        const tbody = document.getElementById('tableBody');
+        for (let i = 1; i <= totalAreas; i++) {
+            let tr = document.createElement('tr');
+            
+            let tdName = document.createElement('td');
+            tdName.className = 'area-name';
+            tdName.innerText = 'KV số ' + i;
+            tr.appendChild(tdName);
+
+            let tdEligible = document.createElement('td');
+            tdEligible.innerHTML = `<input type="number" id="eligible-${i}" min="0" value="0" oninput="sendDataToCloud('eligible-${i}', this.value)" onfocus="this.select()" style="background-color: #fff9c4; border-color: #fbc02d; color: #333;">`;
+            tr.appendChild(tdEligible);
+            
+            for (let j = 1; j <= 6; j++) {
+                let td = document.createElement('td');
+                td.innerHTML = `<input type="number" id="slot-${i}-${j}" min="0" value="0" oninput="sendDataToCloud('slot-${i}-${j}', this.value)" onfocus="this.select()" style="color: #d32f2f;">`;
+                tr.appendChild(td);
+            }
+
+            let tdTotal = document.createElement('td');
+            tdTotal.id = `total-text-${i}`;
+            tdTotal.style.fontWeight = 'bold';
+            tdTotal.style.color = '#1565c0';
+            tdTotal.innerText = '0';
+            tr.appendChild(tdTotal);
+
+            let tdPercent = document.createElement('td');
+            tdPercent.id = `percent-text-${i}`;
+            tdPercent.style.fontWeight = 'bold';
+            tdPercent.style.color = '#2e7d32';
+            tdPercent.innerText = '0.00%';
+            tr.appendChild(tdPercent);
+
+            tbody.appendChild(tr);
+        }
+
+        // 2. CẤU HÌNH BIỂU ĐỒ
+        const ctx = document.getElementById('votingChart').getContext('2d');
+        const votingChart = new Chart(ctx, {
+            type: 'bar', 
+            data: {
+                labels: ['07h-09h', '09h-11h', '11h-13h', '13h-15h', '15h-17h', '17h-19h'],
+                datasets: [{
+                    label: 'Tổng cử tri đi bầu theo khung giờ',
+                    data: [0, 0, 0, 0, 0, 0],
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+
+        // =========================================================================
+        // 3. CẤU HÌNH FIREBASE CỦA BẠN (Đã được gán hoàn chỉnh)
+        // =========================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyB7YazNUoN3Qw7TiTB_TPn5XzpOOvbtMlU",
+            authDomain: "phuonghbt-73adb.firebaseapp.com",
+            databaseURL: "https://phuonghbt-73adb-default-rtdb.firebaseio.com",
+            projectId: "phuonghbt-73adb",
+            storageBucket: "phuonghbt-73adb.firebasestorage.app",
+            messagingSenderId: "431964706035",
+            appId: "1:431964706035:web:815b8b8ef6c7064528d386"
+        };
+        // =========================================================================
+
+        // Khởi tạo đám mây Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const electionRef = database.ref('Phuong_HBT'); // Tạo một thư mục trên đám mây
+
+        // HÀM: KHI CÓ NGƯỜI GÕ SỐ, ĐẨY LÊN ĐÁM MÂY
+        function sendDataToCloud(inputId, value) {
+            let numVal = parseInt(value) || 0;
+            // set() sẽ đè giá trị mới lên đám mây
+            electionRef.child(inputId).set(numVal);
+        }
+
+        // HÀM: LẮNG NGHE ĐÁM MÂY (Ai đó gõ, máy mình tự cập nhật)
+        electionRef.on('value', (snapshot) => {
+            let cloudData = snapshot.val() || {}; // Kéo dữ liệu về
+            
+            let grandTotalVoted = 0;
+            let grandTotalEligible = 0;
+            let chartData = [0, 0, 0, 0, 0, 0];
+
+            for (let i = 1; i <= totalAreas; i++) {
+                // Đồng bộ Cử tri danh sách
+                let eligibleId = `eligible-${i}`;
+                let areaEligible = parseInt(cloudData[eligibleId]) || 0;
+                grandTotalEligible += areaEligible;
+                
+                // Chỉ cập nhật ô input nếu người dùng KHÔNG PHẢI đang gõ vào ô đó (tránh bị giật con trỏ chuột)
+                let eligibleInput = document.getElementById(eligibleId);
+                if (document.activeElement !== eligibleInput) {
+                    eligibleInput.value = areaEligible;
+                }
+
+                // Đồng bộ các khung giờ
+                let areaTotalVoted = 0;
+                for (let j = 1; j <= 6; j++) {
+                    let slotId = `slot-${i}-${j}`;
+                    let slotValue = parseInt(cloudData[slotId]) || 0;
+                    
+                    let slotInput = document.getElementById(slotId);
+                    if (document.activeElement !== slotInput) {
+                        slotInput.value = slotValue;
+                    }
+
+                    // Xử lý màu đỏ cho số 0
+                    if (slotValue === 0) {
+                        slotInput.style.color = '#d32f2f';
+                    } else {
+                        slotInput.style.color = '#333';
+                    }
+
+                    areaTotalVoted += slotValue;
+                    chartData[j-1] += slotValue;
+                }
+
+                // Cập nhật Text Tổng và % cho từng dòng
+                document.getElementById(`total-text-${i}`).innerText = areaTotalVoted.toLocaleString('vi-VN');
+                
+                let areaPercent = 0;
+                if (areaEligible > 0) {
+                    areaPercent = (areaTotalVoted / areaEligible) * 100;
+                    if (areaPercent > 100) areaPercent = 100;
+                }
+                document.getElementById(`percent-text-${i}`).innerText = areaPercent.toFixed(2) + '%';
+
+                grandTotalVoted += areaTotalVoted;
+            }
+
+            // Cập nhật Bảng tổng quan lớn bên phải
+            document.getElementById('totalEligibleDisplay').innerText = grandTotalEligible.toLocaleString('vi-VN');
+            document.getElementById('totalVotes').innerText = grandTotalVoted.toLocaleString('vi-VN');
+            
+            let grandPercent = 0;
+            if (grandTotalEligible > 0) {
+                grandPercent = (grandTotalVoted / grandTotalEligible) * 100;
+                if (grandPercent > 100) grandPercent = 100;
+            }
+            document.getElementById('turnoutPercent').innerText = grandPercent.toFixed(2) + '%';
+
+            // Cập nhật biểu đồ
+            votingChart.data.datasets[0].data = chartData;
+            votingChart.update();
+        });
+
+        // =========================================================================
+        // HÀM XUẤT EXCEL
+        // =========================================================================
+        function exportExcel() {
+            // Tạo mảng dữ liệu với dòng tiêu đề
+            let data = [
+                ["Khu vực bỏ phiếu", "Tổng cử tri KVBP", "07h-09h", "09h-11h", "11h-13h", "13h-15h", "15h-17h", "17h-19h", "Tổng đã bầu", "Tỷ lệ %"]
+            ];
+
+            // Quét qua 32 dòng để lấy số liệu thực tế
+            for (let i = 1; i <= totalAreas; i++) {
+                let row = [];
+                row.push("KV số " + i); 
+                row.push(Number(document.getElementById(`eligible-${i}`).value) || 0); 
+                
+                for(let j = 1; j <= 6; j++) {
+                    row.push(Number(document.getElementById(`slot-${i}-${j}`).value) || 0); 
+                }
+                
+                // Lấy tổng số và xóa dấu chấm phân cách hàng nghìn
+                let totalText = document.getElementById(`total-text-${i}`).innerText.replace(/\./g, '');
+                row.push(Number(totalText) || 0); 
+                
+                row.push(document.getElementById(`percent-text-${i}`).innerText); 
+                
+                data.push(row);
+            }
+
+            // Thêm dòng TỔNG CỘNG
+            data.push([]); 
+            
+            let grandEligible = document.getElementById('totalEligibleDisplay').innerText.replace(/\./g, '');
+            let grandVoted = document.getElementById('totalVotes').innerText.replace(/\./g, '');
+            let grandPercent = document.getElementById('turnoutPercent').innerText;
+
+            data.push([
+                "TỔNG TOÀN PHƯỜNG", 
+                Number(grandEligible) || 0, 
+                "", "", "", "", "", "", 
+                Number(grandVoted) || 0, 
+                grandPercent
+            ]);
+
+            // Đóng gói và tải file Excel xuống
+            let ws = XLSX.utils.aoa_to_sheet(data);
+            let wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Tien_Do_Bau_Cu");
+            
+            // Lấy giờ hiện tại để đặt tên file
+            let date = new Date();
+            let fileName = `Bao_Cao_Bau_Cu_${date.getHours()}h${date.getMinutes()}.xlsx`;
+            
+            XLSX.writeFile(wb, fileName);
+        }
+
+    </script>
+</body>
+</html>
